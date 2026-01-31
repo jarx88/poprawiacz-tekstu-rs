@@ -4,7 +4,6 @@ pub mod api;
 pub mod ui;
 pub mod platform;
 pub mod hotkey;
-pub mod tray;
 pub mod clipboard;
 pub mod diff;
 

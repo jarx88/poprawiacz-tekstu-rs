@@ -19,6 +19,25 @@ impl fmt::Display for ApiError {
 
 impl std::error::Error for ApiError {}
 
+#[derive(Debug, Clone)]
+pub enum PlatformError {
+    ToolNotFound(String),
+    CommandFailed(String),
+    NotSupported(String),
+}
+
+impl fmt::Display for PlatformError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            PlatformError::ToolNotFound(msg) => write!(f, "Tool not found: {}", msg),
+            PlatformError::CommandFailed(msg) => write!(f, "Command failed: {}", msg),
+            PlatformError::NotSupported(msg) => write!(f, "Not supported: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for PlatformError {}
+
 pub const DEFAULT_TIMEOUT: u64 = 25;
 pub const QUICK_TIMEOUT: u64 = 12;
 pub const CONNECTION_TIMEOUT: u64 = 8;
