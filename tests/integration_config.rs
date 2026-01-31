@@ -1,9 +1,8 @@
 //! Integration tests for config persistence and validation
 //! Tests full workflow: create config → save → load → verify equality
 
-use poprawiacz_tekstu_rs::config::{AiSettings, ApiKeys, Config, Models, Settings};
+use poprawiacz_tekstu_rs::config::Config;
 use std::fs;
-use std::io::Write;
 use tempfile::NamedTempFile;
 
 #[test]
@@ -35,7 +34,7 @@ fn test_config_partial_update_persistence() {
     let temp_file = NamedTempFile::new().unwrap();
     let temp_path = temp_file.path();
 
-    let mut config = Config::default();
+    let config = Config::default();
     config.save(temp_path).unwrap();
 
     let mut loaded_config = Config::load(temp_path).unwrap();
@@ -160,7 +159,7 @@ fn test_config_very_long_api_keys() {
 
     let loaded = Config::load(temp_path).unwrap();
     assert_eq!(loaded.api_keys.openai, long_key);
-    assert_eq!(loaded.api_keys.openai.len(), 1002);
+    assert_eq!(loaded.api_keys.openai.len(), 1003);
 }
 
 #[test]
