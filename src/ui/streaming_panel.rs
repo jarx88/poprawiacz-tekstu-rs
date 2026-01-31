@@ -1,5 +1,6 @@
 use tokio::sync::mpsc;
 
+#[derive(Debug)]
 pub struct StreamingPanel {
     text: String,
     rx: mpsc::UnboundedReceiver<String>,

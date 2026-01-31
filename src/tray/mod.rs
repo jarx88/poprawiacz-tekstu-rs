@@ -145,18 +145,31 @@ impl TrayIcon {
     /// but tray-icon requires GTK for system tray integration.
     #[cfg(target_os = "linux")]
     fn init_gtk_thread(icon: Icon) -> anyhow::Result<(MenuId, MenuId)> {
-        let show_item = MenuItem::new("Show", true, None);
-        let quit_item = MenuItem::new("Quit", true, None);
-        let show_id = show_item.id().clone();
-        let quit_id = quit_item.id().clone();
+        use std::sync::{Arc, Mutex};
 
-        let menu = Menu::new();
-        menu.append(&show_item)?;
-        menu.append(&quit_item)?;
+        let ids = Arc::new(Mutex::new(None));
+        let ids_clone = ids.clone();
 
         std::thread::spawn(move || {
             if let Err(e) = gtk::init() {
                 eprintln!("Failed to initialize GTK: {}", e);
+                return;
+            }
+
+            let show_item = MenuItem::new("Show", true, None);
+            let quit_item = MenuItem::new("Quit", true, None);
+            let show_id = show_item.id().clone();
+            let quit_id = quit_item.id().clone();
+
+            *ids_clone.lock().unwrap() = Some((show_id, quit_id));
+
+            let menu = Menu::new();
+            if menu.append(&show_item).is_err() {
+                eprintln!("Failed to append Show item");
+                return;
+            }
+            if menu.append(&quit_item).is_err() {
+                eprintln!("Failed to append Quit item");
                 return;
             }
 
@@ -176,7 +189,14 @@ impl TrayIcon {
             gtk::main();
         });
 
-        Ok((show_id, quit_id))
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        let result = ids
+            .lock()
+            .unwrap()
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("Failed to get menu IDs"));
+        result
     }
 }
 

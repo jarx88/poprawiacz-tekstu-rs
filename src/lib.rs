@@ -6,6 +6,8 @@ pub mod platform;
 pub mod hotkey;
 pub mod clipboard;
 pub mod diff;
+pub mod app;
+pub mod tray;
 
 #[cfg(test)]
 mod tests {
