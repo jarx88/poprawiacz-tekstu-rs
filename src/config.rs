@@ -88,14 +88,23 @@ impl Config {
     }
 
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn std::error::Error>> {
+        let path = path.as_ref();
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
         let toml_string = toml::to_string_pretty(self)?;
         fs::write(path, toml_string)?;
         Ok(())
     }
 
     pub fn get_config_path() -> PathBuf {
-        let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-        home.join("config.toml")
+        if let Some(config_dir) = dirs::config_dir() {
+            let app_config_dir = config_dir.join("poprawiacz-tekstu-rs");
+            app_config_dir.join("config.toml")
+        } else {
+            let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+            home.join(".poprawiacz-tekstu-rs").join("config.toml")
+        }
     }
 }
 

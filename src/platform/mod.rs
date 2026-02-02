@@ -25,6 +25,14 @@ pub fn create_simulator() -> impl KeyboardSimulator {
     WindowsKeyboardSimulator::new()
 }
 
+pub fn simulate_copy() -> Result<(), PlatformError> {
+    create_simulator().simulate_copy()
+}
+
+pub fn simulate_paste() -> Result<(), PlatformError> {
+    create_simulator().simulate_paste()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -69,7 +77,7 @@ mod tests {
         let simulator = WindowsKeyboardSimulator::new();
         let result = simulator.simulate_copy();
         assert!(result.is_err());
-        
+
         let result = simulator.simulate_paste();
         assert!(result.is_err());
     }

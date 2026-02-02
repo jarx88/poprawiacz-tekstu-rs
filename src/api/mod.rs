@@ -1,3 +1,4 @@
+pub mod http_client;
 pub mod openai;
 pub mod anthropic;
 pub mod gemini;

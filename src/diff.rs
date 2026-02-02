@@ -1,9 +1,9 @@
 //! Word-by-word diff highlighting using `similar` crate
 //!
-//! Provides diff computation and egui rendering with color highlighting:
+//! Provides diff computation with color highlighting support:
 //! - Green: Added words
 //! - Red: Removed words
-//! - Cached results to avoid recomputation on every frame
+//! - Cached results to avoid recomputation
 
 use similar::{ChangeTag, TextDiff};
 
@@ -18,30 +18,12 @@ pub enum DiffChange {
     Equal(String),
 }
 
-/// Tokenizes text into words using whitespace as delimiter
-///
-/// Matches Python regex: `r"\S+"` (non-whitespace sequences)
-fn tokenize_words(text: &str) -> Vec<&str> {
-    text.split_whitespace().collect()
-}
-
-/// Computes word-by-word diff between original and corrected text
-///
-/// # Arguments
-/// * `original` - Original text before correction
-/// * `corrected` - Corrected text from API
-///
-/// # Returns
-/// Vector of `DiffChange` representing the diff
 pub fn compute_diff(original: &str, corrected: &str) -> Vec<DiffChange> {
-    let orig_joined = original.split_whitespace().collect::<Vec<_>>().join(" ");
-    let corr_joined = corrected.split_whitespace().collect::<Vec<_>>().join(" ");
-
-    let diff = TextDiff::from_words(&orig_joined, &corr_joined);
+    let diff = TextDiff::from_words(original, corrected);
     let mut changes = Vec::new();
 
     for change in diff.iter_all_changes() {
-        let text = change.to_string();
+        let text = change.value().to_string();
 
         match change.tag() {
             ChangeTag::Delete => changes.push(DiffChange::Delete(text)),
@@ -51,31 +33,6 @@ pub fn compute_diff(original: &str, corrected: &str) -> Vec<DiffChange> {
     }
 
     changes
-}
-
-/// Renders diff changes in egui with color highlighting
-///
-/// # Arguments
-/// * `ui` - egui UI context
-/// * `changes` - Vector of diff changes to render
-pub fn render_diff(ui: &mut egui::Ui, changes: &[DiffChange]) {
-    ui.horizontal_wrapped(|ui| {
-        for change in changes {
-            match change {
-                DiffChange::Delete(text) => {
-                    ui.colored_label(egui::Color32::from_rgb(217, 48, 37), text);
-                    // Red
-                }
-                DiffChange::Insert(text) => {
-                    ui.colored_label(egui::Color32::from_rgb(52, 168, 83), text);
-                    // Green
-                }
-                DiffChange::Equal(text) => {
-                    ui.label(text);
-                }
-            }
-        }
-    });
 }
 
 /// Cached diff result to avoid recomputation
@@ -116,27 +73,6 @@ impl CachedDiff {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_tokenize_words() {
-        let text = "Hello world from Rust";
-        let words = tokenize_words(text);
-        assert_eq!(words, vec!["Hello", "world", "from", "Rust"]);
-    }
-
-    #[test]
-    fn test_tokenize_words_multiple_spaces() {
-        let text = "Hello    world  \t  from";
-        let words = tokenize_words(text);
-        assert_eq!(words, vec!["Hello", "world", "from"]);
-    }
-
-    #[test]
-    fn test_tokenize_words_empty() {
-        let text = "";
-        let words = tokenize_words(text);
-        assert_eq!(words, Vec::<&str>::new());
-    }
 
     #[test]
     fn test_compute_diff_no_changes() {

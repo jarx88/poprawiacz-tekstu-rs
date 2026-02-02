@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Poprawiacz Tekstu
+Comment=Multi-API Text Corrector
+Exec=poprawiacz-tekstu-rs
+Icon=poprawiacz-tekstu-rs
+Terminal=false
+Type=Application
+Categories=Utility;TextTools;
+Keywords=text;correction;ai;openai;anthropic;gemini;deepseek;

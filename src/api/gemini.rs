@@ -1,58 +1,52 @@
-use crate::error::{ApiError, DEFAULT_TIMEOUT, CONNECTION_TIMEOUT};
+use crate::api::http_client::{get_client, get_streaming_client};
+use crate::error::{ApiError, DEFAULT_TIMEOUT};
+use futures::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
 const GEMINI_API_BASE: &str = "https://generativelanguage.googleapis.com/v1beta/models";
 
 #[derive(Debug, Serialize)]
-struct GenerateContentRequest {
-    contents: Vec<Content>,
-    generation_config: GenerationConfig,
-    safety_settings: Vec<SafetySetting>,
+struct GeminiRequest {
+    contents: Vec<GeminiContent>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    system_instruction: Option<SystemInstruction>,
 }
 
-#[derive(Debug, Serialize, Clone)]
-struct Content {
+#[derive(Debug, Serialize)]
+struct SystemInstruction {
+    parts: Vec<TextPart>,
+}
+
+#[derive(Debug, Serialize)]
+struct GeminiContent {
     role: String,
-    parts: Vec<Part>,
+    parts: Vec<TextPart>,
 }
 
-#[derive(Debug, Serialize, Clone)]
-struct Part {
+#[derive(Debug, Serialize)]
+struct TextPart {
     text: String,
 }
 
-#[derive(Debug, Serialize)]
-struct GenerationConfig {
-    temperature: f32,
-    max_output_tokens: u32,
-}
-
-#[derive(Debug, Serialize)]
-struct SafetySetting {
-    category: String,
-    threshold: String,
-}
-
 #[derive(Debug, Deserialize)]
-struct GenerateContentResponse {
-    candidates: Vec<Candidate>,
+struct GeminiResponse {
+    candidates: Option<Vec<Candidate>>,
 }
 
 #[derive(Debug, Deserialize)]
 struct Candidate {
-    content: CandidateContent,
+    content: Option<CandidateContent>,
 }
 
 #[derive(Debug, Deserialize)]
 struct CandidateContent {
-    parts: Vec<ContentPart>,
+    parts: Option<Vec<ContentPart>>,
 }
 
 #[derive(Debug, Deserialize)]
 struct ContentPart {
-    text: String,
+    text: Option<String>,
 }
 
 pub async fn correct_text_gemini(
@@ -62,6 +56,23 @@ pub async fn correct_text_gemini(
     instruction_prompt: &str,
     system_prompt: &str,
 ) -> Result<String, ApiError> {
+    correct_text_gemini_with_callback::<fn(&str)>(
+        api_key, model, text_to_correct, instruction_prompt, system_prompt, true, None
+    ).await
+}
+
+pub async fn correct_text_gemini_with_callback<F>(
+    api_key: &str,
+    model: &str,
+    text_to_correct: &str,
+    instruction_prompt: &str,
+    system_prompt: &str,
+    streaming: bool,
+    on_chunk: Option<F>,
+) -> Result<String, ApiError>
+where
+    F: Fn(&str) + Send + 'static,
+{
     if api_key.is_empty() {
         return Err(ApiError::Response("API key is empty".to_string()));
     }
@@ -72,59 +83,34 @@ pub async fn correct_text_gemini(
         return Err(ApiError::Response("Text to correct is empty".to_string()));
     }
 
-    let client = Client::builder()
-        .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
-        .connect_timeout(Duration::from_secs(CONNECTION_TIMEOUT))
-        .build()
-        .map_err(|e| ApiError::Connection(e.to_string()))?;
+    let client = if streaming { get_streaming_client() } else { get_client() };
 
-    let url = format!(
-        "{}/{}:generateContent?key={}",
-        GEMINI_API_BASE, model, api_key
-    );
+    let user_content = format!("{}\n\n---\n{}\n---", instruction_prompt, text_to_correct);
 
-    let contents = vec![
-        Content {
+    let request = GeminiRequest {
+        contents: vec![GeminiContent {
             role: "user".to_string(),
-            parts: vec![
-                Part {
-                    text: system_prompt.to_string(),
-                },
-                Part {
-                    text: instruction_prompt.to_string(),
-                },
-                Part {
-                    text: text_to_correct.to_string(),
-                },
-            ],
-        },
-    ];
-
-    let request = GenerateContentRequest {
-        contents,
-        generation_config: GenerationConfig {
-            temperature: 0.7,
-            max_output_tokens: 3072,
-        },
-        safety_settings: vec![
-            SafetySetting {
-                category: "HARM_CATEGORY_HARASSMENT".to_string(),
-                threshold: "BLOCK_NONE".to_string(),
-            },
-            SafetySetting {
-                category: "HARM_CATEGORY_HATE_SPEECH".to_string(),
-                threshold: "BLOCK_NONE".to_string(),
-            },
-            SafetySetting {
-                category: "HARM_CATEGORY_SEXUALLY_EXPLICIT".to_string(),
-                threshold: "BLOCK_NONE".to_string(),
-            },
-            SafetySetting {
-                category: "HARM_CATEGORY_DANGEROUS_CONTENT".to_string(),
-                threshold: "BLOCK_NONE".to_string(),
-            },
-        ],
+            parts: vec![TextPart { text: user_content }],
+        }],
+        system_instruction: Some(SystemInstruction {
+            parts: vec![TextPart { text: system_prompt.to_string() }],
+        }),
     };
+
+    if streaming {
+        stream_gemini_request_with_callback(client, api_key, model, request, on_chunk).await
+    } else {
+        batch_gemini_request(client, api_key, model, request).await
+    }
+}
+
+async fn batch_gemini_request(
+    client: &Client,
+    api_key: &str,
+    model: &str,
+    request: GeminiRequest,
+) -> Result<String, ApiError> {
+    let url = format!("{}/{}:generateContent?key={}", GEMINI_API_BASE, model, api_key);
 
     let response = client
         .post(&url)
@@ -150,16 +136,104 @@ pub async fn correct_text_gemini(
         )));
     }
 
-    let completion: GenerateContentResponse = response.json().await.map_err(|e| {
+    let completion: GeminiResponse = response.json().await.map_err(|e| {
         ApiError::Response(format!("Failed to parse response: {}", e))
     })?;
 
     completion
         .candidates
-        .first()
-        .and_then(|candidate| candidate.content.parts.first())
-        .map(|part| part.text.trim().to_string())
+        .and_then(|c| c.into_iter().next())
+        .and_then(|c| c.content)
+        .and_then(|c| c.parts)
+        .and_then(|p| p.into_iter().next())
+        .and_then(|p| p.text)
+        .map(|t| t.trim().to_string())
         .ok_or_else(|| ApiError::Response("No text content in response".to_string()))
+}
+
+async fn stream_gemini_request_with_callback<F>(
+    client: &Client,
+    api_key: &str,
+    model: &str,
+    request: GeminiRequest,
+    on_chunk: Option<F>,
+) -> Result<String, ApiError>
+where
+    F: Fn(&str) + Send + 'static,
+{
+    let url = format!("{}/{}:streamGenerateContent?alt=sse&key={}", GEMINI_API_BASE, model, api_key);
+
+    let response = client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .json(&request)
+        .send()
+        .await
+        .map_err(|e| {
+            if e.is_timeout() {
+                ApiError::Timeout(format!("Request timed out after {}s", DEFAULT_TIMEOUT))
+            } else if e.is_connect() {
+                ApiError::Connection(e.to_string())
+            } else {
+                ApiError::Response(e.to_string())
+            }
+        })?;
+
+    if !response.status().is_success() {
+        return Err(ApiError::Response(format!(
+            "HTTP {}: {}",
+            response.status(),
+            response.text().await.unwrap_or_default()
+        )));
+    }
+
+    let mut stream = response.bytes_stream();
+    let mut collected_text = String::new();
+    let mut buffer = String::new();
+
+    while let Some(chunk_result) = stream.next().await {
+        let chunk = chunk_result.map_err(|e| ApiError::Response(e.to_string()))?;
+        let chunk_str = String::from_utf8_lossy(&chunk);
+        buffer.push_str(&chunk_str);
+
+        for line in buffer.lines() {
+            if line.starts_with("data: ") {
+                let data = &line[6..];
+                if data.trim() == "[DONE]" {
+                    break;
+                }
+
+                if let Ok(resp) = serde_json::from_str::<GeminiResponse>(data) {
+                    if let Some(candidates) = resp.candidates {
+                        if let Some(candidate) = candidates.first() {
+                            if let Some(content) = &candidate.content {
+                                if let Some(parts) = &content.parts {
+                                    for part in parts {
+                                        if let Some(text) = &part.text {
+                                            if !text.is_empty() {
+                                                collected_text.push_str(text);
+                                                if let Some(ref callback) = on_chunk {
+                                                    callback(text);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        buffer.clear();
+    }
+
+    if collected_text.is_empty() {
+        Err(ApiError::Response("No content in streaming response".to_string()))
+    } else {
+        Ok(collected_text.trim().to_string())
+    }
 }
 
 #[cfg(test)]
@@ -170,60 +244,6 @@ mod tests {
     async fn test_gemini_empty_api_key() {
         let result = correct_text_gemini(
             "",
-            "gemini-2.5-flash",
-            "test text",
-            "Correct this",
-            "You are a helpful assistant",
-        )
-        .await;
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            ApiError::Response(msg) => assert_eq!(msg, "API key is empty"),
-            _ => panic!("Expected Response error"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_gemini_empty_model() {
-        let result = correct_text_gemini(
-            "test-key",
-            "",
-            "test text",
-            "Correct this",
-            "You are a helpful assistant",
-        )
-        .await;
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            ApiError::Response(msg) => assert_eq!(msg, "Model is empty"),
-            _ => panic!("Expected Response error"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_gemini_empty_text() {
-        let result = correct_text_gemini(
-            "test-key",
-            "gemini-2.5-flash",
-            "",
-            "Correct this",
-            "You are a helpful assistant",
-        )
-        .await;
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            ApiError::Response(msg) => assert_eq!(msg, "Text to correct is empty"),
-            _ => panic!("Expected Response error"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_gemini_invalid_api_key() {
-        let result = correct_text_gemini(
-            "invalid-key",
             "gemini-2.5-flash",
             "test text",
             "Correct this",

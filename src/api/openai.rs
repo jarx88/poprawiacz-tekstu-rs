@@ -1,8 +1,8 @@
-use crate::error::{ApiError, DEFAULT_TIMEOUT, CONNECTION_TIMEOUT};
+use crate::api::http_client::{get_client, get_streaming_client};
+use crate::error::{ApiError, DEFAULT_TIMEOUT};
 use futures::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
 const OPENAI_API_URL: &str = "https://api.openai.com/v1/chat/completions";
 
@@ -11,7 +11,8 @@ struct ChatCompletionRequest {
     model: String,
     messages: Vec<Message>,
     temperature: f32,
-    max_tokens: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_completion_tokens: Option<u32>,
     stream: bool,
 }
 
@@ -60,6 +61,21 @@ pub async fn correct_text_openai(
     system_prompt: &str,
     streaming: bool,
 ) -> Result<String, ApiError> {
+    correct_text_openai_with_callback::<fn(&str)>(api_key, model, text_to_correct, instruction_prompt, system_prompt, streaming, None).await
+}
+
+pub async fn correct_text_openai_with_callback<F>(
+    api_key: &str,
+    model: &str,
+    text_to_correct: &str,
+    instruction_prompt: &str,
+    system_prompt: &str,
+    streaming: bool,
+    on_chunk: Option<F>,
+) -> Result<String, ApiError> 
+where
+    F: Fn(&str) + Send + 'static,
+{
     if api_key.is_empty() {
         return Err(ApiError::Response("API key is empty".to_string()));
     }
@@ -70,11 +86,7 @@ pub async fn correct_text_openai(
         return Err(ApiError::Response("Text to correct is empty".to_string()));
     }
 
-    let client = Client::builder()
-        .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
-        .connect_timeout(Duration::from_secs(CONNECTION_TIMEOUT))
-        .build()
-        .map_err(|e| ApiError::Connection(e.to_string()))?;
+    let client = if streaming { get_streaming_client() } else { get_client() };
 
     let messages = vec![
         Message {
@@ -91,12 +103,12 @@ pub async fn correct_text_openai(
         model: model.to_string(),
         messages,
         temperature: 0.7,
-        max_tokens: 2048,
+        max_completion_tokens: Some(4096),
         stream: streaming,
     };
 
     if streaming {
-        stream_openai_request(&client, api_key, request).await
+        stream_openai_request_with_callback(&client, api_key, request, on_chunk).await
     } else {
         batch_openai_request(&client, api_key, request).await
     }
@@ -143,11 +155,15 @@ async fn batch_openai_request(
         .ok_or_else(|| ApiError::Response("No choices in response".to_string()))
 }
 
-async fn stream_openai_request(
+async fn stream_openai_request_with_callback<F>(
     client: &Client,
     api_key: &str,
     request: ChatCompletionRequest,
-) -> Result<String, ApiError> {
+    on_chunk: Option<F>,
+) -> Result<String, ApiError> 
+where
+    F: Fn(&str) + Send + 'static,
+{
     let response = client
         .post(OPENAI_API_URL)
         .header("Authorization", format!("Bearer {}", api_key))
@@ -193,6 +209,9 @@ async fn stream_openai_request(
                     if let Some(choice) = chunk_data.choices.first() {
                         if let Some(content) = &choice.delta.content {
                             collected_text.push_str(content);
+                            if let Some(ref callback) = on_chunk {
+                                callback(content);
+                            }
                         }
                     }
                 }

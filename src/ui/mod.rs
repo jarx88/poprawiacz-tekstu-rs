@@ -1,5 +1,3 @@
-pub mod streaming_panel;
-pub mod settings;
+pub mod settings_gtk;
 
-pub use streaming_panel::StreamingPanel;
-pub use settings::{SettingsDialog, SettingsAction};
+pub use settings_gtk::SettingsDialog;

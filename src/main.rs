@@ -1,53 +1,88 @@
-use poprawiacz_tekstu_rs::app::MultiAPICorrector;
+use gtk4::gio;
+use gtk4::glib;
+use gtk4::prelude::*;
+use libadwaita as adw;
 use tracing_subscriber::{self, EnvFilter};
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+use poprawiacz_tekstu_rs::app::MainWindow;
+
+const APP_ID: &str = "io.github.jarx88.poprawiacz-tekstu-rs";
+
+fn main() -> glib::ExitCode {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::new("poprawiacz_tekstu_rs=info")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("poprawiacz_tekstu_rs=info")),
+        )
         .init();
 
-    let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1200.0, 800.0])
-            .with_min_inner_size([800.0, 600.0])
-            .with_title("PoprawiaczTekstuRs - Multi-API Text Corrector")
-            .with_icon(load_icon()),
-        ..Default::default()
-    };
+    let app = adw::Application::builder()
+        .application_id(APP_ID)
+        .flags(gio::ApplicationFlags::HANDLES_COMMAND_LINE)
+        .build();
 
-    eframe::run_native(
-        "PoprawiaczTekstuRs",
-        native_options,
-        Box::new(|cc| Ok(Box::new(MultiAPICorrector::new(cc)))),
-    )?;
+    app.connect_activate(|app| {
+        if let Some(window) = app.active_window() {
+            window.set_visible(true);
+            window.present();
+        }
+    });
 
-    Ok(())
+    app.connect_startup(|app| {
+        let window = MainWindow::new(app);
+        window.present();
+    });
+
+    app.connect_command_line(|app, cmd| {
+        let args: Vec<String> = cmd
+            .arguments()
+            .iter()
+            .map(|s| s.to_string_lossy().to_string())
+            .collect();
+
+        if args.contains(&"--paste".to_string()) || args.contains(&"-p".to_string()) {
+            if let Some(window) = app.active_window() {
+                window.set_visible(true);
+                window.present();
+
+                if let Some(main_window) = window.downcast_ref::<adw::ApplicationWindow>() {
+                    for widget in main_window.observe_children().into_iter() {
+                        if let Ok(child) = widget {
+                            if let Some(btn) = find_paste_button(&child) {
+                                btn.emit_clicked();
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            app.activate();
+        }
+        0
+    });
+
+    app.run()
 }
 
-fn load_icon() -> egui::IconData {
-    let size = 32;
-    let mut rgba = Vec::with_capacity((size * size * 4) as usize);
-    
-    for _ in 0..(size * size) {
-        rgba.push(16);
-        rgba.push(163);
-        rgba.push(127);
-        rgba.push(255);
+fn find_paste_button(widget: &glib::Object) -> Option<gtk4::Button> {
+    if let Some(btn) = widget.downcast_ref::<gtk4::Button>() {
+        if let Some(label) = btn.label() {
+            if label.contains("Wklej") {
+                return Some(btn.clone());
+            }
+        }
     }
 
-    egui::IconData {
-        rgba,
-        width: size,
-        height: size,
+    if let Some(container) = widget.downcast_ref::<gtk4::Widget>() {
+        let mut child = container.first_child();
+        while let Some(c) = child {
+            if let Some(btn) = find_paste_button(c.upcast_ref()) {
+                return Some(btn);
+            }
+            child = c.next_sibling();
+        }
     }
-}
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_framework_works() {
-        assert!(true);
-    }
+    None
 }

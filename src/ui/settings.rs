@@ -1,7 +1,6 @@
-use crate::config::{ApiKeys, Config, Models};
+use crate::config::{AiSettings, ApiKeys, Config, Models};
 use std::path::PathBuf;
 
-/// Settings dialog state for managing API keys and models
 #[derive(Debug, Clone)]
 pub struct SettingsDialog {
     pub visible: bool,
@@ -13,6 +12,8 @@ pub struct SettingsDialog {
     pub temp_anthropic_model: String,
     pub temp_gemini_model: String,
     pub temp_deepseek_model: String,
+    pub temp_reasoning_effort: String,
+    pub temp_verbosity: String,
     pub validation_error: Option<String>,
 }
 
@@ -23,7 +24,6 @@ impl Default for SettingsDialog {
 }
 
 impl SettingsDialog {
-    /// Create new settings dialog with empty fields
     pub fn new() -> Self {
         Self {
             visible: false,
@@ -35,11 +35,12 @@ impl SettingsDialog {
             temp_anthropic_model: String::new(),
             temp_gemini_model: String::new(),
             temp_deepseek_model: String::new(),
+            temp_reasoning_effort: "high".to_string(),
+            temp_verbosity: "medium".to_string(),
             validation_error: None,
         }
     }
 
-    /// Load settings from config
     pub fn load_from_config(&mut self, config: &Config) {
         self.temp_openai_key = config.api_keys.openai.clone();
         self.temp_anthropic_key = config.api_keys.anthropic.clone();
@@ -49,6 +50,8 @@ impl SettingsDialog {
         self.temp_anthropic_model = config.models.anthropic.clone();
         self.temp_gemini_model = config.models.gemini.clone();
         self.temp_deepseek_model = config.models.deepseek.clone();
+        self.temp_reasoning_effort = config.ai_settings.reasoning_effort.clone();
+        self.temp_verbosity = config.ai_settings.verbosity.clone();
         self.validation_error = None;
     }
 
@@ -86,12 +89,9 @@ impl SettingsDialog {
         Ok(())
     }
 
-    /// Save settings to config and persist to file
     pub fn save_to_config(&mut self, config: &mut Config, path: &PathBuf) -> Result<(), String> {
-        // Validate before saving
         self.validate()?;
 
-        // Update config with new values
         config.api_keys = ApiKeys {
             openai: self.temp_openai_key.trim().to_string(),
             anthropic: self.temp_anthropic_key.trim().to_string(),
@@ -106,7 +106,11 @@ impl SettingsDialog {
             deepseek: self.temp_deepseek_model.trim().to_string(),
         };
 
-        // Save to file
+        config.ai_settings = AiSettings {
+            reasoning_effort: self.temp_reasoning_effort.clone(),
+            verbosity: self.temp_verbosity.clone(),
+        };
+
         config
             .save(path)
             .map_err(|e| format!("Failed to save config: {}", e))?;
@@ -115,7 +119,6 @@ impl SettingsDialog {
         Ok(())
     }
 
-    /// Clear all fields
     pub fn clear(&mut self) {
         self.temp_openai_key.clear();
         self.temp_anthropic_key.clear();
@@ -125,6 +128,8 @@ impl SettingsDialog {
         self.temp_anthropic_model.clear();
         self.temp_gemini_model.clear();
         self.temp_deepseek_model.clear();
+        self.temp_reasoning_effort = "high".to_string();
+        self.temp_verbosity = "medium".to_string();
         self.validation_error = None;
     }
 
@@ -138,74 +143,253 @@ impl SettingsDialog {
         self.visible = false;
     }
 
-    /// Render the settings dialog using egui
-    pub fn show_window(&mut self, ctx: &egui::Context) -> Option<SettingsAction> {
+    pub fn show_window_content(&mut self, ctx: &egui::Context) -> Option<SettingsAction> {
         let mut action = None;
 
-        egui::Window::new("Settings")
-            .open(&mut self.visible)
-            .resizable(true)
-            .default_width(500.0)
-            .show(ctx, |ui| {
-                ui.heading("API Keys & Models");
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(10.0);
+                action = self.render_content(ui);
+            });
+        });
 
-                // Display validation error if present
+        action
+    }
+
+    pub fn show_window(&mut self, ctx: &egui::Context) -> Option<SettingsAction> {
+        let mut action = None;
+        let mut visible = self.visible;
+
+        egui::Window::new("⚙️ Ustawienia")
+            .open(&mut visible)
+            .resizable(true)
+            .default_width(620.0)
+            .default_height(850.0)
+            .collapsible(false)
+            .show(ctx, |ui| {
+                action = self.render_content(ui);
+            });
+
+        self.visible = visible;
+        action
+    }
+
+    fn render_content(&mut self, ui: &mut egui::Ui) -> Option<SettingsAction> {
+        let mut action = None;
+
+        egui::ScrollArea::vertical()
+            .auto_shrink(false)
+            .show(ui, |ui| {
+                ui.set_max_width(580.0);
+
                 if let Some(error) = &self.validation_error {
-                    ui.colored_label(egui::Color32::RED, format!("❌ {}", error));
+                    egui::Frame::NONE
+                        .fill(egui::Color32::from_rgb(80, 20, 20))
+                        .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(220, 60, 60)))
+                        .corner_radius(egui::CornerRadius::same(8))
+                        .inner_margin(egui::Margin::same(12))
+                        .show(ui, |ui| {
+                            ui.colored_label(
+                                egui::Color32::from_rgb(248, 113, 113),
+                                format!("❌ {}", error),
+                            );
+                        });
+                    ui.add_space(12.0);
                 }
 
-                ui.separator();
+                let api_section = |ui: &mut egui::Ui,
+                                   icon: &str,
+                                   name: &str,
+                                   color: egui::Color32,
+                                   key: &mut String,
+                                   model: &mut String| {
+                    egui::Frame::NONE
+                        .fill(egui::Color32::from_rgb(38, 38, 46))
+                        .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(55, 55, 65)))
+                        .corner_radius(egui::CornerRadius::same(10))
+                        .inner_margin(egui::Margin::same(16))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    egui::RichText::new(format!("{} {}", icon, name))
+                                        .size(15.0)
+                                        .strong()
+                                        .color(color),
+                                );
+                            });
 
-                // OpenAI Section
-                ui.group(|ui| {
-                    ui.label("🟢 OpenAI");
-                    ui.label("API Key:");
-                    ui.text_edit_singleline(&mut self.temp_openai_key);
-                    ui.label("Model:");
-                    ui.text_edit_singleline(&mut self.temp_openai_model);
-                });
+                            ui.add_space(8.0);
 
-                ui.separator();
+                            ui.label(
+                                egui::RichText::new("API Key")
+                                    .size(12.0)
+                                    .color(egui::Color32::from_rgb(160, 160, 170)),
+                            );
+                            ui.add(
+                                egui::TextEdit::singleline(key)
+                                    .password(true)
+                                    .desired_width(f32::INFINITY),
+                            );
 
-                // Anthropic Section
-                ui.group(|ui| {
-                    ui.label("🟠 Anthropic");
-                    ui.label("API Key:");
-                    ui.text_edit_singleline(&mut self.temp_anthropic_key);
-                    ui.label("Model:");
-                    ui.text_edit_singleline(&mut self.temp_anthropic_model);
-                });
+                            ui.add_space(8.0);
 
-                ui.separator();
+                            ui.label(
+                                egui::RichText::new("Model")
+                                    .size(12.0)
+                                    .color(egui::Color32::from_rgb(160, 160, 170)),
+                            );
+                            ui.add(egui::TextEdit::singleline(model).desired_width(f32::INFINITY));
+                        });
+                };
 
-                // Gemini Section
-                ui.group(|ui| {
-                    ui.label("🔵 Gemini");
-                    ui.label("API Key:");
-                    ui.text_edit_singleline(&mut self.temp_gemini_key);
-                    ui.label("Model:");
-                    ui.text_edit_singleline(&mut self.temp_gemini_model);
-                });
+                api_section(
+                    ui,
+                    "●",
+                    "OpenAI",
+                    egui::Color32::from_rgb(16, 163, 127),
+                    &mut self.temp_openai_key,
+                    &mut self.temp_openai_model,
+                );
+                ui.add_space(12.0);
 
-                ui.separator();
+                api_section(
+                    ui,
+                    "●",
+                    "Anthropic",
+                    egui::Color32::from_rgb(217, 119, 6),
+                    &mut self.temp_anthropic_key,
+                    &mut self.temp_anthropic_model,
+                );
+                ui.add_space(12.0);
 
-                // DeepSeek Section
-                ui.group(|ui| {
-                    ui.label("🟣 DeepSeek");
-                    ui.label("API Key:");
-                    ui.text_edit_singleline(&mut self.temp_deepseek_key);
-                    ui.label("Model:");
-                    ui.text_edit_singleline(&mut self.temp_deepseek_model);
-                });
+                api_section(
+                    ui,
+                    "●",
+                    "Gemini",
+                    egui::Color32::from_rgb(66, 133, 244),
+                    &mut self.temp_gemini_key,
+                    &mut self.temp_gemini_model,
+                );
+                ui.add_space(12.0);
 
-                ui.separator();
+                api_section(
+                    ui,
+                    "●",
+                    "DeepSeek",
+                    egui::Color32::from_rgb(124, 58, 237),
+                    &mut self.temp_deepseek_key,
+                    &mut self.temp_deepseek_model,
+                );
+                ui.add_space(12.0);
 
-                // Buttons
+                egui::Frame::NONE
+                    .fill(egui::Color32::from_rgb(38, 38, 46))
+                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(55, 55, 65)))
+                    .corner_radius(egui::CornerRadius::same(10))
+                    .inner_margin(egui::Margin::same(16))
+                    .show(ui, |ui| {
+                        ui.label(
+                            egui::RichText::new("🤖 AI Settings")
+                                .size(15.0)
+                                .strong()
+                                .color(egui::Color32::from_rgb(140, 140, 200)),
+                        );
+
+                        ui.add_space(12.0);
+
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new("Reasoning Effort:")
+                                    .size(12.0)
+                                    .color(egui::Color32::from_rgb(160, 160, 170)),
+                            );
+                            egui::ComboBox::from_id_salt("reasoning_effort")
+                                .selected_text(&self.temp_reasoning_effort)
+                                .width(150.0)
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut self.temp_reasoning_effort,
+                                        "minimal".to_string(),
+                                        "Minimal",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.temp_reasoning_effort,
+                                        "low".to_string(),
+                                        "Low",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.temp_reasoning_effort,
+                                        "medium".to_string(),
+                                        "Medium",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.temp_reasoning_effort,
+                                        "high".to_string(),
+                                        "High",
+                                    );
+                                });
+                        });
+
+                        ui.add_space(8.0);
+
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new("Verbosity:")
+                                    .size(12.0)
+                                    .color(egui::Color32::from_rgb(160, 160, 170)),
+                            );
+                            ui.add_space(40.0);
+                            egui::ComboBox::from_id_salt("verbosity")
+                                .selected_text(&self.temp_verbosity)
+                                .width(150.0)
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut self.temp_verbosity,
+                                        "low".to_string(),
+                                        "Low",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.temp_verbosity,
+                                        "medium".to_string(),
+                                        "Medium",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.temp_verbosity,
+                                        "high".to_string(),
+                                        "High",
+                                    );
+                                });
+                        });
+                    });
+
+                ui.add_space(20.0);
+
                 ui.horizontal(|ui| {
-                    if ui.button("Save").clicked() {
+                    ui.spacing_mut().item_spacing.x = 12.0;
+
+                    let save_btn = egui::Button::new(
+                        egui::RichText::new("💾 Zapisz")
+                            .color(egui::Color32::WHITE)
+                            .size(14.0),
+                    )
+                    .fill(egui::Color32::from_rgb(34, 197, 94))
+                    .corner_radius(egui::CornerRadius::same(8))
+                    .min_size(egui::vec2(120.0, 38.0));
+
+                    if ui.add(save_btn).clicked() {
                         action = Some(SettingsAction::Save);
                     }
-                    if ui.button("Cancel").clicked() {
+
+                    let cancel_btn = egui::Button::new(
+                        egui::RichText::new("Anuluj")
+                            .color(egui::Color32::WHITE)
+                            .size(14.0),
+                    )
+                    .fill(egui::Color32::from_rgb(70, 70, 85))
+                    .corner_radius(egui::CornerRadius::same(8))
+                    .min_size(egui::vec2(120.0, 38.0));
+
+                    if ui.add(cancel_btn).clicked() {
                         action = Some(SettingsAction::Cancel);
                     }
                 });
