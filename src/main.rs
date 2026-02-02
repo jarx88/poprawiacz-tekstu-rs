@@ -2,9 +2,11 @@ use gtk4::gio;
 use gtk4::glib;
 use gtk4::prelude::*;
 use libadwaita as adw;
+use once_cell::sync::Lazy;
 use tracing_subscriber::{self, EnvFilter};
 
 use poprawiacz_tekstu_rs::app::MainWindow;
+use poprawiacz_tekstu_rs::TOKIO_RUNTIME;
 
 const APP_ID: &str = "io.github.jarx88.poprawiacz-tekstu-rs";
 
@@ -15,6 +17,8 @@ fn main() -> glib::ExitCode {
                 .unwrap_or_else(|_| EnvFilter::new("poprawiacz_tekstu_rs=info")),
         )
         .init();
+
+    Lazy::force(&TOKIO_RUNTIME);
 
     let app = adw::Application::builder()
         .application_id(APP_ID)
@@ -34,7 +38,9 @@ fn main() -> glib::ExitCode {
     });
 
     app.connect_command_line(|app, cmd| {
-        let args: Vec<String> = cmd.arguments().iter()
+        let args: Vec<String> = cmd
+            .arguments()
+            .iter()
             .map(|s| s.to_string_lossy().to_string())
             .collect();
 
@@ -42,7 +48,7 @@ fn main() -> glib::ExitCode {
             if let Some(window) = app.active_window() {
                 window.set_visible(true);
                 window.present();
-                
+
                 if let Some(main_window) = window.downcast_ref::<adw::ApplicationWindow>() {
                     for widget in main_window.observe_children().into_iter() {
                         if let Ok(child) = widget {
@@ -71,7 +77,7 @@ fn find_paste_button(widget: &glib::Object) -> Option<gtk4::Button> {
             }
         }
     }
-    
+
     if let Some(container) = widget.downcast_ref::<gtk4::Widget>() {
         let mut child = container.first_child();
         while let Some(c) = child {
@@ -81,6 +87,6 @@ fn find_paste_button(widget: &glib::Object) -> Option<gtk4::Button> {
             child = c.next_sibling();
         }
     }
-    
+
     None
 }

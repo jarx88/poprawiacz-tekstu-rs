@@ -757,20 +757,29 @@ impl MainWindow {
     }
 
     async fn handle_hotkey_triggered(state: &Rc<RefCell<AppState>>) {
-        if let Ok(text) = clipboard::read_text() {
-            if !text.is_empty() {
-                Self::prepare_processing_session(state, &text);
-                
-                let state_ref = state.borrow();
-                let config = state_ref.config.borrow().clone();
-                let cancel_flags = state_ref.cancel_flags.clone();
-                let session = state_ref.session_id.load(Ordering::SeqCst);
-                drop(state_ref);
+        info!("Paste button clicked, reading clipboard...");
+        match clipboard::read_text() {
+            Ok(text) => {
+                info!("Clipboard read OK, {} chars", text.len());
+                if !text.is_empty() {
+                    Self::prepare_processing_session(state, &text);
+                    
+                    let state_ref = state.borrow();
+                    let config = state_ref.config.borrow().clone();
+                    let cancel_flags = state_ref.cancel_flags.clone();
+                    let session = state_ref.session_id.load(Ordering::SeqCst);
+                    drop(state_ref);
 
-                Self::process_with_apis(state.clone(), text, config, cancel_flags, session).await;
-            } else {
+                    Self::process_with_apis(state.clone(), text, config, cancel_flags, session).await;
+                } else {
+                    let state_ref = state.borrow();
+                    state_ref.status_label.set_text("⚠️ Brak tekstu w schowku");
+                }
+            }
+            Err(e) => {
+                error!("Clipboard read failed: {}", e);
                 let state_ref = state.borrow();
-                state_ref.status_label.set_text("⚠️ Brak tekstu w schowku");
+                state_ref.status_label.set_text(&format!("❌ Blad schowka: {}", e));
             }
         }
     }
@@ -833,7 +842,7 @@ impl MainWindow {
             let cancel = cancel_flags[i].clone();
             let tx = tx.clone();
 
-            tokio::spawn(async move {
+            crate::TOKIO_RUNTIME.spawn(async move {
                 let result = match i {
                     0 => correct_text_openai_with_callback::<fn(&str)>(
                         &config.api_keys.openai,
