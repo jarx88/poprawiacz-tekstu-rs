@@ -42,9 +42,9 @@ Modern AI-powered text correction tool written in Rust. Sends text to 4 AI provi
 
 **Requirements:**
 - Rust 1.70+ (`rustup` recommended)
-- Linux: GTK3 development libraries
+- Linux: GTK4 and libadwaita development libraries
   ```bash
-  sudo apt-get install libgtk-3-dev libcairo2-dev libpango1.0-dev libgdk-pixbuf2.0-dev libatk1.0-dev
+  sudo apt-get install libgtk-4-dev libadwaita-1-dev
   ```
 
 **Build:**
@@ -191,9 +191,9 @@ Artifacts: Linux tarball, Windows zip
 
 ### Linux
 
-**GTK errors**: Install GTK3 development libraries:
+**GTK errors**: Install GTK4 and libadwaita development libraries:
 ```bash
-sudo apt-get install libgtk-3-dev
+sudo apt-get install libgtk-4-dev libadwaita-1-dev
 ```
 
 **Hotkey not working**: Check if another app is using Ctrl+Shift+C. App tries fallback: Ctrl+Shift+Alt+C
