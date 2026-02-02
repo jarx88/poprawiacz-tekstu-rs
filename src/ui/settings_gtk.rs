@@ -7,17 +7,33 @@ use tracing::info;
 
 pub struct SettingsDialog {
     dialog: adw::PreferencesWindow,
-    openai_key: adw::EntryRow,
-    openai_model: adw::EntryRow,
-    anthropic_key: adw::EntryRow,
-    anthropic_model: adw::EntryRow,
-    gemini_key: adw::EntryRow,
-    gemini_model: adw::EntryRow,
-    deepseek_key: adw::EntryRow,
-    deepseek_model: adw::EntryRow,
+    openai_key: gtk4::Entry,
+    openai_model: gtk4::Entry,
+    anthropic_key: gtk4::Entry,
+    anthropic_model: gtk4::Entry,
+    gemini_key: gtk4::Entry,
+    gemini_model: gtk4::Entry,
+    deepseek_key: gtk4::Entry,
+    deepseek_model: gtk4::Entry,
     highlight_diffs: gtk4::Switch,
-    reasoning_effort: adw::ComboRow,
-    verbosity: adw::ComboRow,
+}
+
+fn create_entry_row(title: &str, value: &str, is_password: bool) -> (adw::ActionRow, gtk4::Entry) {
+    let row = adw::ActionRow::builder().title(title).build();
+
+    let entry = gtk4::Entry::builder()
+        .text(value)
+        .valign(gtk4::Align::Center)
+        .hexpand(true)
+        .visibility(!is_password)
+        .build();
+
+    if is_password {
+        entry.add_css_class("monospace");
+    }
+
+    row.add_suffix(&entry);
+    (row, entry)
 }
 
 impl SettingsDialog {
@@ -37,69 +53,49 @@ impl SettingsDialog {
 
         let openai_group = adw::PreferencesGroup::builder().title("OpenAI").build();
 
-        let openai_key = adw::EntryRow::builder()
-            .title("Klucz API")
-            .text(&config.api_keys.openai)
-            .build();
-        openai_key.add_css_class("monospace");
-        openai_group.add(&openai_key);
+        let (openai_key_row, openai_key) =
+            create_entry_row("Klucz API", &config.api_keys.openai, true);
+        openai_group.add(&openai_key_row);
 
-        let openai_model = adw::EntryRow::builder()
-            .title("Model")
-            .text(&config.models.openai)
-            .build();
-        openai_group.add(&openai_model);
+        let (openai_model_row, openai_model) =
+            create_entry_row("Model", &config.models.openai, false);
+        openai_group.add(&openai_model_row);
 
         api_page.add(&openai_group);
 
         let anthropic_group = adw::PreferencesGroup::builder().title("Anthropic").build();
 
-        let anthropic_key = adw::EntryRow::builder()
-            .title("Klucz API")
-            .text(&config.api_keys.anthropic)
-            .build();
-        anthropic_key.add_css_class("monospace");
-        anthropic_group.add(&anthropic_key);
+        let (anthropic_key_row, anthropic_key) =
+            create_entry_row("Klucz API", &config.api_keys.anthropic, true);
+        anthropic_group.add(&anthropic_key_row);
 
-        let anthropic_model = adw::EntryRow::builder()
-            .title("Model")
-            .text(&config.models.anthropic)
-            .build();
-        anthropic_group.add(&anthropic_model);
+        let (anthropic_model_row, anthropic_model) =
+            create_entry_row("Model", &config.models.anthropic, false);
+        anthropic_group.add(&anthropic_model_row);
 
         api_page.add(&anthropic_group);
 
         let gemini_group = adw::PreferencesGroup::builder().title("Gemini").build();
 
-        let gemini_key = adw::EntryRow::builder()
-            .title("Klucz API")
-            .text(&config.api_keys.gemini)
-            .build();
-        gemini_key.add_css_class("monospace");
-        gemini_group.add(&gemini_key);
+        let (gemini_key_row, gemini_key) =
+            create_entry_row("Klucz API", &config.api_keys.gemini, true);
+        gemini_group.add(&gemini_key_row);
 
-        let gemini_model = adw::EntryRow::builder()
-            .title("Model")
-            .text(&config.models.gemini)
-            .build();
-        gemini_group.add(&gemini_model);
+        let (gemini_model_row, gemini_model) =
+            create_entry_row("Model", &config.models.gemini, false);
+        gemini_group.add(&gemini_model_row);
 
         api_page.add(&gemini_group);
 
         let deepseek_group = adw::PreferencesGroup::builder().title("DeepSeek").build();
 
-        let deepseek_key = adw::EntryRow::builder()
-            .title("Klucz API")
-            .text(&config.api_keys.deepseek)
-            .build();
-        deepseek_key.add_css_class("monospace");
-        deepseek_group.add(&deepseek_key);
+        let (deepseek_key_row, deepseek_key) =
+            create_entry_row("Klucz API", &config.api_keys.deepseek, true);
+        deepseek_group.add(&deepseek_key_row);
 
-        let deepseek_model = adw::EntryRow::builder()
-            .title("Model")
-            .text(&config.models.deepseek)
-            .build();
-        deepseek_group.add(&deepseek_model);
+        let (deepseek_model_row, deepseek_model) =
+            create_entry_row("Model", &config.models.deepseek, false);
+        deepseek_group.add(&deepseek_model_row);
 
         api_page.add(&deepseek_group);
 
@@ -111,12 +107,12 @@ impl SettingsDialog {
             .build();
 
         let display_group = adw::PreferencesGroup::builder()
-            .title("Wyświetlanie")
+            .title("Wyswietlanie")
             .build();
 
         let highlight_row = adw::ActionRow::builder()
-            .title("Podświetlaj różnice")
-            .subtitle("Zaznacz zmiany między oryginałem a poprawionym tekstem")
+            .title("Podswietlaj roznice")
+            .subtitle("Zaznacz zmiany miedzy oryginalem a poprawionym tekstem")
             .build();
 
         let highlight_diffs = gtk4::Switch::builder()
@@ -128,43 +124,6 @@ impl SettingsDialog {
 
         display_group.add(&highlight_row);
         settings_page.add(&display_group);
-
-        let ai_group = adw::PreferencesGroup::builder()
-            .title("Ustawienia AI")
-            .description("Parametry przetwarzania przez modele AI")
-            .build();
-
-        let effort_options = gtk4::StringList::new(&["low", "medium", "high"]);
-        let reasoning_effort = adw::ComboRow::builder()
-            .title("Reasoning Effort")
-            .subtitle("Poziom dokładności rozumowania (dla modeli o1/o3)")
-            .model(&effort_options)
-            .build();
-        let effort_idx = match config.ai_settings.reasoning_effort.as_str() {
-            "low" => 0,
-            "medium" => 1,
-            "high" => 2,
-            _ => 2,
-        };
-        reasoning_effort.set_selected(effort_idx);
-        ai_group.add(&reasoning_effort);
-
-        let verbosity_options = gtk4::StringList::new(&["low", "medium", "high"]);
-        let verbosity = adw::ComboRow::builder()
-            .title("Verbosity")
-            .subtitle("Poziom szczegółowości odpowiedzi")
-            .model(&verbosity_options)
-            .build();
-        let verb_idx = match config.ai_settings.verbosity.as_str() {
-            "low" => 0,
-            "medium" => 1,
-            "high" => 2,
-            _ => 1,
-        };
-        verbosity.set_selected(verb_idx);
-        ai_group.add(&verbosity);
-
-        settings_page.add(&ai_group);
 
         dialog.add(&settings_page);
 
@@ -179,8 +138,6 @@ impl SettingsDialog {
             deepseek_key,
             deepseek_model,
             highlight_diffs,
-            reasoning_effort,
-            verbosity,
         }
     }
 
@@ -189,18 +146,6 @@ impl SettingsDialog {
     }
 
     pub fn to_config(&self) -> Config {
-        let effort_options = ["low", "medium", "high"];
-        let reasoning_effort = effort_options
-            .get(self.reasoning_effort.selected() as usize)
-            .unwrap_or(&"high")
-            .to_string();
-
-        let verbosity_options = ["low", "medium", "high"];
-        let verbosity = verbosity_options
-            .get(self.verbosity.selected() as usize)
-            .unwrap_or(&"medium")
-            .to_string();
-
         Config {
             api_keys: crate::config::ApiKeys {
                 openai: self.openai_key.text().to_string(),
@@ -220,8 +165,8 @@ impl SettingsDialog {
                 highlight_diffs: self.highlight_diffs.is_active(),
             },
             ai_settings: crate::config::AiSettings {
-                reasoning_effort,
-                verbosity,
+                reasoning_effort: "high".to_string(),
+                verbosity: "medium".to_string(),
             },
         }
     }
@@ -236,23 +181,8 @@ impl SettingsDialog {
         let deepseek_key = self.deepseek_key.clone();
         let deepseek_model = self.deepseek_model.clone();
         let highlight_diffs = self.highlight_diffs.clone();
-        let reasoning_effort_row = self.reasoning_effort.clone();
-        let verbosity_row = self.verbosity.clone();
-        let _dialog = self.dialog.clone();
 
         self.dialog.connect_close_request(move |_| {
-            let effort_options = ["low", "medium", "high"];
-            let reasoning_effort = effort_options
-                .get(reasoning_effort_row.selected() as usize)
-                .unwrap_or(&"high")
-                .to_string();
-
-            let verbosity_options = ["low", "medium", "high"];
-            let verbosity = verbosity_options
-                .get(verbosity_row.selected() as usize)
-                .unwrap_or(&"medium")
-                .to_string();
-
             let config = Config {
                 api_keys: crate::config::ApiKeys {
                     openai: openai_key.text().to_string(),
@@ -272,8 +202,8 @@ impl SettingsDialog {
                     highlight_diffs: highlight_diffs.is_active(),
                 },
                 ai_settings: crate::config::AiSettings {
-                    reasoning_effort,
-                    verbosity,
+                    reasoning_effort: "high".to_string(),
+                    verbosity: "medium".to_string(),
                 },
             };
 

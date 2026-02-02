@@ -1,4 +1,4 @@
-use crate::api::http_client::{get_client, get_streaming_client};
+use crate::api::http_client::get_client;
 use crate::error::{ApiError, DEFAULT_TIMEOUT};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -84,7 +84,7 @@ where
         return Err(ApiError::Response("Text to correct is empty".to_string()));
     }
 
-    let client = if streaming { get_streaming_client() } else { get_client() };
+    let client = get_client();
 
     let messages = vec![Message {
         role: "user".to_string(),

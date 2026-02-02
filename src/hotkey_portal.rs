@@ -1,4 +1,5 @@
 use ashpd::desktop::global_shortcuts::{GlobalShortcuts, NewShortcut};
+use ashpd::WindowIdentifier;
 use futures_util::StreamExt;
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
@@ -28,11 +29,11 @@ impl PortalHotkeyManager {
             format!("Session creation failed: {}", e)
         })?;
 
-        let shortcut = NewShortcut::new("capture-text", "Przechwytuje tekst ze schowka i uruchamia korekcje")
+        let shortcut = NewShortcut::new("capture-text", "Przechwytywanie tekstu")
             .preferred_trigger("CTRL+SHIFT+C");
 
         let request = shortcuts
-            .bind_shortcuts(&session, &[shortcut], None)
+            .bind_shortcuts(&session, &[shortcut], &WindowIdentifier::default())
             .await
             .map_err(|e| {
                 error!("Failed to bind shortcuts: {}", e);
@@ -49,9 +50,8 @@ impl PortalHotkeyManager {
         } else {
             for shortcut in response.shortcuts() {
                 info!(
-                    "Shortcut bound: {} -> {}",
+                    "Shortcut bound: {}",
                     shortcut.id(),
-                    shortcut.trigger_description()
                 );
             }
         }

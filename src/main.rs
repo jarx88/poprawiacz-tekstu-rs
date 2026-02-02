@@ -34,9 +34,7 @@ fn main() -> glib::ExitCode {
     });
 
     app.connect_command_line(|app, cmd| {
-        let args: Vec<String> = cmd
-            .arguments()
-            .iter()
+        let args: Vec<String> = cmd.arguments().iter()
             .map(|s| s.to_string_lossy().to_string())
             .collect();
 
@@ -44,7 +42,7 @@ fn main() -> glib::ExitCode {
             if let Some(window) = app.active_window() {
                 window.set_visible(true);
                 window.present();
-
+                
                 if let Some(main_window) = window.downcast_ref::<adw::ApplicationWindow>() {
                     for widget in main_window.observe_children().into_iter() {
                         if let Ok(child) = widget {
@@ -73,7 +71,7 @@ fn find_paste_button(widget: &glib::Object) -> Option<gtk4::Button> {
             }
         }
     }
-
+    
     if let Some(container) = widget.downcast_ref::<gtk4::Widget>() {
         let mut child = container.first_child();
         while let Some(c) = child {
@@ -83,6 +81,6 @@ fn find_paste_button(widget: &glib::Object) -> Option<gtk4::Button> {
             child = c.next_sibling();
         }
     }
-
+    
     None
 }

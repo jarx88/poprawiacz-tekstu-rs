@@ -4,8 +4,8 @@
 //! Obsługuje 7 różnych stylów: normal, professional, translate_en, translate_pl,
 //! change_meaning, summary, prompt
 
-use once_cell::sync::Lazy;
 use std::collections::HashMap;
+use once_cell::sync::Lazy;
 
 /// Style korekty tekstu
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -83,13 +83,12 @@ impl CorrectionStyle {
 /// Instrukcje dla różnych stylów korekty
 static INSTRUCTIONS: Lazy<HashMap<CorrectionStyle, &'static str>> = Lazy::new(|| {
     let mut m = HashMap::new();
-
+    
     m.insert(CorrectionStyle::Normal, 
         "Correct the following text, preserving its formatting (including all enters and paragraphs). \
         Return ONLY the corrected text, without any additional headers, separators, or comments.");
-
-    m.insert(
-        CorrectionStyle::Professional,
+    
+    m.insert(CorrectionStyle::Professional,
         "Rewrite the following text into a professional, formal register. \
         Preserve the original meaning and formatting (paragraphs, lists, line breaks). \
         Always adjust tone to business/professional Polish: \
@@ -98,34 +97,25 @@ static INSTRUCTIONS: Lazy<HashMap<CorrectionStyle, &'static str>> = Lazy::new(||
         - replace casual verbs and particles with precise, formal equivalents \
         - standardize punctuation and capitalization \
         - ensure clear, concise, and courteous phrasing \
-        IMPORTANT: Do not return the input unchanged; refine it to a consistently formal style.",
-    );
-
-    m.insert(
-        CorrectionStyle::TranslateEn,
+        IMPORTANT: Do not return the input unchanged; refine it to a consistently formal style.");
+    
+    m.insert(CorrectionStyle::TranslateEn,
         "YOUR SOLE TASK IS TO TRANSLATE THE FOLLOWING TEXT INTO ENGLISH. \
         Preserve the original formatting (paragraphs, lists, etc.). \
-        Do not correct the text, only translate it.",
-    );
-
-    m.insert(
-        CorrectionStyle::TranslatePl,
+        Do not correct the text, only translate it.");
+    
+    m.insert(CorrectionStyle::TranslatePl,
         "YOUR SOLE TASK IS TO TRANSLATE THE FOLLOWING TEXT INTO POLISH. \
         Preserve the original formatting (paragraphs, lists, etc.). \
-        Do not correct the text, only translate it.",
-    );
-
-    m.insert(
-        CorrectionStyle::ChangeMeaning,
-        "Propose a completely new text based on the one below, preserving the formatting.",
-    );
-
-    m.insert(
-        CorrectionStyle::Summary,
+        Do not correct the text, only translate it.");
+    
+    m.insert(CorrectionStyle::ChangeMeaning,
+        "Propose a completely new text based on the one below, preserving the formatting.");
+    
+    m.insert(CorrectionStyle::Summary,
         "Create a concise summary of the main points from the following text, \
-        preserving the formatting of lists, etc.",
-    );
-
+        preserving the formatting of lists, etc.");
+    
     m.insert(CorrectionStyle::Prompt,
         "Transform the following text into a clear, concise instruction for immediate implementation. \
         The output should be a direct, actionable command or request without explanations, examples, \
@@ -134,7 +124,7 @@ static INSTRUCTIONS: Lazy<HashMap<CorrectionStyle, &'static str>> = Lazy::new(||
         introductory phrases, just provide the instruction itself. If the text is already a clear \
         instruction, return it as is. Focus on maintaining the original intent while making it as \
         direct and actionable as possible.");
-
+    
     m
 });
 
@@ -212,34 +202,18 @@ mod tests {
     #[test]
     fn test_correction_style_from_str() {
         assert_eq!(CorrectionStyle::from_str("normal"), CorrectionStyle::Normal);
-        assert_eq!(
-            CorrectionStyle::from_str("professional"),
-            CorrectionStyle::Professional
-        );
-        assert_eq!(
-            CorrectionStyle::from_str("translate_en"),
-            CorrectionStyle::TranslateEn
-        );
-        assert_eq!(
-            CorrectionStyle::from_str("translate_pl"),
-            CorrectionStyle::TranslatePl
-        );
+        assert_eq!(CorrectionStyle::from_str("professional"), CorrectionStyle::Professional);
+        assert_eq!(CorrectionStyle::from_str("translate_en"), CorrectionStyle::TranslateEn);
+        assert_eq!(CorrectionStyle::from_str("translate_pl"), CorrectionStyle::TranslatePl);
         assert_eq!(CorrectionStyle::from_str("NORMAL"), CorrectionStyle::Normal);
-        assert_eq!(
-            CorrectionStyle::from_str("unknown"),
-            CorrectionStyle::Normal
-        );
+        assert_eq!(CorrectionStyle::from_str("unknown"), CorrectionStyle::Normal);
     }
 
     #[test]
     fn test_instruction_prompts_exist() {
         for style in CorrectionStyle::all() {
             let prompt = get_instruction_prompt(*style);
-            assert!(
-                !prompt.is_empty(),
-                "Prompt for {:?} should not be empty",
-                style
-            );
+            assert!(!prompt.is_empty(), "Prompt for {:?} should not be empty", style);
         }
     }
 
@@ -247,11 +221,7 @@ mod tests {
     fn test_system_prompts_exist() {
         for style in CorrectionStyle::all() {
             let prompt = get_system_prompt(*style);
-            assert!(
-                !prompt.is_empty(),
-                "System prompt for {:?} should not be empty",
-                style
-            );
+            assert!(!prompt.is_empty(), "System prompt for {:?} should not be empty", style);
         }
     }
 
@@ -264,14 +234,8 @@ mod tests {
 
     #[test]
     fn test_display_names() {
-        assert_eq!(
-            CorrectionStyle::Professional.display_name_pl(),
-            "Zmień na profesjonalny ton"
-        );
-        assert_eq!(
-            CorrectionStyle::TranslateEn.display_name_pl(),
-            "Przetłumacz na angielski"
-        );
+        assert_eq!(CorrectionStyle::Professional.display_name_pl(), "Zmień na profesjonalny ton");
+        assert_eq!(CorrectionStyle::TranslateEn.display_name_pl(), "Przetłumacz na angielski");
     }
 
     #[test]
