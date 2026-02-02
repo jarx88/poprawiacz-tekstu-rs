@@ -11,6 +11,20 @@ struct GeminiRequest {
     contents: Vec<GeminiContent>,
     #[serde(skip_serializing_if = "Option::is_none")]
     system_instruction: Option<SystemInstruction>,
+    #[serde(rename = "generationConfig")]
+    generation_config: GenerationConfig,
+}
+
+#[derive(Debug, Serialize)]
+struct GenerationConfig {
+    #[serde(rename = "thinkingConfig")]
+    thinking_config: ThinkingConfig,
+}
+
+#[derive(Debug, Serialize)]
+struct ThinkingConfig {
+    #[serde(rename = "thinkingBudget")]
+    thinking_budget: i32,
 }
 
 #[derive(Debug, Serialize)]
@@ -95,6 +109,11 @@ where
         system_instruction: Some(SystemInstruction {
             parts: vec![TextPart { text: system_prompt.to_string() }],
         }),
+        generation_config: GenerationConfig {
+            thinking_config: ThinkingConfig {
+                thinking_budget: 0,
+            },
+        },
     };
 
     if streaming {
